@@ -1,35 +1,50 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+
+// Landing Page
+import Landing from './pages/Landing';
+
+// Manufacturer Pages
+import ManufacturerDashboard from './pages/manufacturer/Dashboard';
+import RegisterBatch from './pages/manufacturer/RegisterBatch';
+import BatchList from './pages/manufacturer/BatchList';
+import BatchDetails from './pages/manufacturer/BatchDetails';
+import WatchdogMonitor from './pages/manufacturer/WatchdogMonitor';
+
+// Pharmacy Pages
+import PharmacyDashboard from './pages/pharmacy/Dashboard';
+import ScanVerify from './pages/pharmacy/ScanVerify';
+import VerificationResult from './pages/pharmacy/VerificationResult';
+import Report from './pages/pharmacy/Report';
+
+// No authentication required - direct access to functionality
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <Router>
+      <div className="App">
+        <Routes>
+          {/* Landing page */}
+          <Route path="/" element={<Landing />} />
+          
+          {/* Manufacturer Routes - Direct Access */}
+          <Route path="/manufacturer" element={<ManufacturerDashboard />} />
+          <Route path="/manufacturer/register-batch" element={<RegisterBatch />} />
+          <Route path="/manufacturer/batches" element={<BatchList />} />
+          <Route path="/manufacturer/batch/:id" element={<BatchDetails />} />
+          <Route path="/manufacturer/watchdog" element={<WatchdogMonitor />} />
+          
+          {/* Pharmacy Routes - Direct Access */}
+          <Route path="/pharmacy" element={<PharmacyDashboard />} />
+          <Route path="/pharmacy/scan-verify" element={<ScanVerify />} />
+          <Route path="/pharmacy/verification-result" element={<VerificationResult />} />
+          <Route path="/pharmacy/report" element={<Report />} />
+          
+          {/* Catch all route */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    </Router>
+  );
 }
 
-export default App
+export default App;
