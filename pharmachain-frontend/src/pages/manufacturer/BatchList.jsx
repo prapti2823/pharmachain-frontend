@@ -35,16 +35,21 @@ const BatchList = () => {
     }
   };
 
-  const handleRegenerateQR = async (medicineId, medicineName) => {
-    if (!confirm(`Regenerate QR code for ${medicineName}?`)) return;
-    
+  const handleDownloadQR = async (medicineId, medicineName) => {
     setRegeneratingQR(medicineId);
     try {
       const response = await manufacturerAPI.regenerateQR(medicineId);
-      setSuccess('QR code regenerated successfully!');
-      fetchBatches(); // Refresh the list
+      if (response.data.qr_code_base64) {
+        const link = document.createElement('a');
+        link.href = `data:image/png;base64,${response.data.qr_code_base64}`;
+        link.download = `QR_${medicineName}_${medicineId}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setSuccess('QR code downloaded successfully!');
+      }
     } catch (error) {
-      setError('Failed to regenerate QR code');
+      setError('Failed to download QR code');
     } finally {
       setRegeneratingQR(null);
     }
@@ -52,19 +57,19 @@ const BatchList = () => {
 
   const columns = [
     {
-      key: 'medicine_name',
+      key: 'name',
       header: 'Medicine Name',
       render: (value) => (
         <div className="font-medium text-gray-900">{value}</div>
       )
     },
-    {
-      key: 'batch_number',
-      header: 'Batch Number',
-      render: (value) => (
-        <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">{value}</span>
-      )
-    },
+    // {
+    //   key: 'batch_number',
+    //   header: 'Batch Number',
+    //   render: (value) => (
+    //     <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">{value}</span>
+    //   )
+    // },
     {
       key: 'expiry_date',
       header: 'Expiry Date',
@@ -85,47 +90,37 @@ const BatchList = () => {
       )
     },
     {
-      key: 'ai_validation_status',
-      header: 'AI Status',
-      render: (value, row) => {
-        const status = row.ai_validation?.status || 'pending';
-        const getStatusColor = () => {
-          switch (status) {
-            case 'valid': return 'text-green-600 bg-green-100';
-            case 'invalid': return 'text-red-600 bg-red-100';
-            default: return 'text-yellow-600 bg-yellow-100';
-          }
-        };
-        return (
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor()}`}>
-            {status === 'valid' ? '✅ Valid' : status === 'invalid' ? '❌ Invalid' : '⏳ Pending'}
-          </span>
-        );
-      }
-    },
-    {
       key: 'actions',
       header: 'Actions',
       render: (value, row) => (
         <div className="flex gap-2">
-          <button
+          {/* <button
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/manufacturer/batch/${row.medicine_id}`);
+              navigate(`/manufacturer/batch/${row.id || row.medicine_id}`);
             }}
             className="text-blue-600 hover:text-blue-700 text-sm font-medium px-2 py-1 rounded hover:bg-blue-50"
           >
             View
-          </button>
+          </button> */}
           <button
             onClick={(e) => {
               e.stopPropagation();
-              handleRegenerateQR(row.medicine_id, row.medicine_name);
+              handleDownloadQR(row.id || row.medicine_id, row.name || row.medicine_name);
             }}
-            disabled={regeneratingQR === row.medicine_id}
-            className="text-emerald-600 hover:text-emerald-700 text-sm font-medium px-2 py-1 rounded hover:bg-emerald-50 disabled:opacity-50"
+            disabled={regeneratingQR === (row.id || row.medicine_id)}
+            className="text-blue-600 hover:text-blue-700 text-sm font-medium px-2 py-1 rounded hover:bg-blue-50 disabled:opacity-50 flex items-center gap-1"
           >
-            {regeneratingQR === row.medicine_id ? '...' : 'QR'}
+            {regeneratingQR === (row.id || row.medicine_id) ? (
+              '...'
+            ) : (
+              <>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                QR
+              </>
+            )}
           </button>
         </div>
       )
@@ -237,7 +232,7 @@ const BatchList = () => {
               <Table
                 columns={columns}
                 data={batches}
-                onRowClick={(batch) => navigate(`/manufacturer/batch/${batch.medicine_id}`)}
+                onRowClick={(batch) => navigate(`/manufacturer/batch/${batch.id || batch.medicine_id}`)}
               />
             </div>
           ) : (

@@ -212,7 +212,7 @@ const VerificationResult = () => {
                   </div>
                   <div>
                     <span className="text-sm font-medium text-slate-500">Manufacturer</span>
-                    <p className="text-slate-900">{medicine?.manufacturer}</p>
+                    <p className="text-slate-900">{medicine?.manufacturer?.name || medicine?.manufacturer}</p>
                   </div>
                   <div>
                     <span className="text-sm font-medium text-slate-500">Batch Number</span>

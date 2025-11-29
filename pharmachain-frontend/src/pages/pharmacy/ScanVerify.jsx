@@ -189,7 +189,7 @@ const ScanVerify = () => {
                   </div>
 
                   {scanMethod === 'camera' ? (
-                    <QRScanner onScan={handleQRScan} />
+                    <QRScanner onScanSuccess={handleQRScan} />
                   ) : (
                     <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center">
                       <svg className="w-12 h-12 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -199,13 +199,17 @@ const ScanVerify = () => {
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files[0];
                           if (file) {
-                            // Simulate QR extraction from image
-                            setTimeout(() => {
-                              handleQRScan('sample_qr_data_from_image');
-                            }, 1000);
+                            try {
+                              const { Html5Qrcode } = await import('html5-qrcode');
+                              const html5QrCode = new Html5Qrcode("qr-reader");
+                              const qrCodeMessage = await html5QrCode.scanFile(file, true);
+                              handleQRScan(qrCodeMessage);
+                            } catch (err) {
+                              setError('Failed to read QR code from image');
+                            }
                           }
                         }}
                         className="hidden"
@@ -217,6 +221,7 @@ const ScanVerify = () => {
                       >
                         Choose File
                       </label>
+                      <div id="qr-reader" style={{display: 'none'}}></div>
                     </div>
                   )}
                 </div>

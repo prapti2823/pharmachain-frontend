@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'https://pharmachain-backend-hackathon.onrender.com/';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -35,6 +35,9 @@ export const pharmacyAPI = {
 export const watchdogAPI = {
   startMonitoring: (data = {}) => api.post('/watchdog/start-monitoring', data),
   getStatus: () => api.get('/watchdog/status'),
+  getAlerts: () => api.get('/watchdog/alerts'),
+  getLatestAlerts: () => api.get('/watchdog/alerts/latest'),
+  clearAlerts: () => api.delete('/watchdog/alerts'),
 };
 
 // Medicine APIs

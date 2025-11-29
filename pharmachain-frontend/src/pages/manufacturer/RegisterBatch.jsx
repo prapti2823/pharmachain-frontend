@@ -89,21 +89,13 @@ const RegisterBatch = () => {
     }
   };
 
-  const handlePrintQR = () => {
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-      <html>
-        <head><title>QR Code - ${formData.batch_number}</title></head>
-        <body style="text-align: center; padding: 20px;">
-          <h2>${formData.medicine_name}</h2>
-          <p>Batch: ${formData.batch_number}</p>
-          <img src="data:image/png;base64,${qrCode}" style="max-width: 300px;" />
-          <p>Manufacturer: ${manufacturerName}</p>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+  const handleDownloadQR = () => {
+    const link = document.createElement('a');
+    link.href = `data:image/png;base64,${qrCode}`;
+    link.download = `QR_${formData.medicine_name}_${formData.batch_number}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   if (success) {
@@ -137,19 +129,19 @@ const RegisterBatch = () => {
                   />
                 </div>
                 <p className="text-sm text-slate-600 text-center mb-4">
-                  Print this QR code and attach it to your medicine packages
+                  Download this QR code and attach it to your medicine packages
                 </p>
               </div>
 
               <div className="flex gap-3">
                 <button
-                  onClick={handlePrintQR}
+                  onClick={handleDownloadQR}
                   className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  Print QR Code
+                  Download QR Code
                 </button>
                 <button
                   onClick={() => navigate('/manufacturer/batches')}
@@ -164,7 +156,7 @@ const RegisterBatch = () => {
                   setSuccess(false);
                   setFormData({
                     medicine_name: '',
-                    manufacturer_id: localStorage.getItem('manufacturerId') || '',
+                    manufacturer_id: 1,
                     batch_number: '',
                     expiry_date: '',
                     ingredients: '',

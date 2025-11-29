@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { manufacturerAPI, watchdogAPI, medicineAPI } from '../../utils/api';
 
 const ManufacturerDashboard = () => {
-  const [stats, setStats] = useState({
-    totalBatches: 0,
-    validBatches: 0,
-    pendingBatches: 0,
-    watchdogActive: false
-  });
+  // const [stats, setStats] = useState({
+  //   totalBatches: 0,
+  //   validBatches: 0,
+  //   pendingBatches: 0,
+  //   watchdogActive: false
+  // });
   const [recentBatches, setRecentBatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [manufacturer, setManufacturer] = useState('');
@@ -62,12 +62,12 @@ const ManufacturerDashboard = () => {
                status === 'pending' || status === 'processing' || status === 'review';
       }).length;
       
-      setStats({
-        totalBatches: batches.length,
-        validBatches,
-        pendingBatches,
-        watchdogActive
-      });
+      // setStats({
+      //   totalBatches: batches.length,
+      //   validBatches,
+      //   pendingBatches,
+      //   watchdogActive
+      // });
       
       // Set recent batches (last 5)
       setRecentBatches(batches.slice(-5).reverse());
@@ -163,7 +163,7 @@ const ManufacturerDashboard = () => {
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
@@ -225,12 +225,12 @@ const ManufacturerDashboard = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div> */}
 
         {/* Quick Actions */}
         <div className="mb-8">
           <h3 className="text-xl font-bold text-slate-800 mb-6">Quick Actions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <button
               onClick={() => navigate('/manufacturer/register-batch')}
               className="group bg-white rounded-xl p-6 border border-slate-200 hover:border-blue-300 hover:shadow-lg transition-all duration-300 text-left"
@@ -272,7 +272,7 @@ const ManufacturerDashboard = () => {
               <p className="text-sm text-slate-600">Monitor fraud detection system</p>
             </button>
 
-            <button
+            {/* <button
               onClick={() => window.location.reload()}
               className="group bg-white rounded-xl p-6 border border-slate-200 hover:border-slate-300 hover:shadow-lg transition-all duration-300 text-left"
             >
@@ -283,12 +283,12 @@ const ManufacturerDashboard = () => {
               </div>
               <h4 className="font-semibold text-slate-800 mb-2">Refresh Data</h4>
               <p className="text-sm text-slate-600">Update dashboard information</p>
-            </button>
+            </button> */}
           </div>
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+        {/* <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
           <div className="px-6 py-4 border-b border-slate-200">
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-semibold text-slate-800">Recent Activity</h3>
@@ -335,7 +335,7 @@ const ManufacturerDashboard = () => {
               </div>
             )}
           </div>
-        </div>
+        </div> */}
       </div>
     </div>
   );
