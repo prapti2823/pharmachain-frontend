@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ImageUploader from '../../components/ImageUploader';
+import Loader from '../../components/Loader';
+import Alert from '../../components/Alert';
 import { manufacturerAPI } from '../../utils/api';
-import { validateBatchForm } from '../../utils/validators';
 
 const RegisterBatch = () => {
   const [formData, setFormData] = useState({
     medicine_name: '',
-    manufacturer: 'PharmaCore Industries',
+    manufacturer_id: localStorage.getItem('manufacturerId') || '',
     batch_number: '',
     expiry_date: '',
     ingredients: '',
@@ -15,40 +16,55 @@ const RegisterBatch = () => {
     storage: '',
     quantity_manufactured: ''
   });
+  const [manufacturerName, setManufacturerName] = useState(localStorage.getItem('manufacturerName') || '');
   const [image, setImage] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [errors, setErrors] = useState({});
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
+  const [qrCode, setQrCode] = useState('');
+  const [validationErrors, setValidationErrors] = useState({});
   const navigate = useNavigate();
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-    if (errors[e.target.name]) {
-      setErrors({ ...errors, [e.target.name]: '' });
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (validationErrors[name]) {
+      setValidationErrors(prev => ({ ...prev, [name]: '' }));
     }
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    
+    if (!formData.medicine_name.trim()) errors.medicine_name = 'Medicine name is required';
+    if (!formData.batch_number.trim()) errors.batch_number = 'Batch number is required';
+    if (!formData.expiry_date) errors.expiry_date = 'Expiry date is required';
+    if (!formData.ingredients.trim()) errors.ingredients = 'Ingredients are required';
+    if (!formData.usage.trim()) errors.usage = 'Usage information is required';
+    if (!formData.storage.trim()) errors.storage = 'Storage instructions are required';
+    if (!formData.quantity_manufactured) errors.quantity_manufactured = 'Quantity is required';
+    if (!formData.manufacturer_id) errors.manufacturer_id = 'Manufacturer ID is required';
+    if (!image) errors.image = 'Medicine package image is required';
+
+    // Validate expiry date is in future
+    if (formData.expiry_date && new Date(formData.expiry_date) <= new Date()) {
+      errors.expiry_date = 'Expiry date must be in the future';
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      setError('Please fix the validation errors');
+      return;
+    }
+
     setLoading(true);
-    setResult(null);
-    setErrors({});
-
-    const validation = validateBatchForm(formData);
-    if (!validation.isValid) {
-      setErrors(validation.errors);
-      setLoading(false);
-      return;
-    }
-
-    if (!image) {
-      setErrors({ image: 'Medicine image is required' });
-      setLoading(false);
-      return;
-    }
+    setError('');
 
     try {
       const submitData = new FormData();
@@ -58,149 +74,112 @@ const RegisterBatch = () => {
       submitData.append('image', image);
 
       const response = await manufacturerAPI.registerBatch(submitData);
-      setResult(response.data);
+      
+      if (response.data.status === 'success') {
+        setSuccess(true);
+        setQrCode(response.data.batch_registration.qr_code_base64);
+      } else {
+        setError('Registration failed: ' + (response.data.detail?.errors?.join(', ') || 'Unknown error'));
+      }
     } catch (error) {
       console.error('Registration error:', error);
-      setResult({
-        status: 'error',
-        message: error.response?.data?.detail || 'Registration failed'
-      });
+      setError('Failed to register batch. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Processing Batch</h3>
-          <p className="text-gray-600">AI is validating your medicine batch...</p>
-        </div>
-      </div>
-    );
-  }
+  const handlePrintQR = () => {
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head><title>QR Code - ${formData.batch_number}</title></head>
+        <body style="text-align: center; padding: 20px;">
+          <h2>${formData.medicine_name}</h2>
+          <p>Batch: ${formData.batch_number}</p>
+          <img src="data:image/png;base64,${qrCode}" style="max-width: 300px;" />
+          <p>Manufacturer: ${manufacturerName}</p>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  };
 
-  if (result && result.status === 'success') {
+  if (success) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <h1 className="text-xl font-semibold text-gray-900">Batch Registration Success</h1>
-              <button
-                onClick={() => navigate('/manufacturer')}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-emerald-500 to-green-600 p-6 text-white text-center">
+              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
+              </div>
+              <h2 className="text-2xl font-bold mb-2">Batch Registered Successfully!</h2>
+              <p className="text-emerald-100">AI validation completed with 100% confidence</p>
+            </div>
+            
+            <div className="p-8">
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-semibold text-slate-800 mb-2">{formData.medicine_name}</h3>
+                <p className="text-slate-600">Batch: {formData.batch_number}</p>
+              </div>
+
+              <div className="bg-slate-50 rounded-xl p-6 mb-6">
+                <h4 className="font-semibold text-slate-800 mb-4 text-center">QR Code for Package</h4>
+                <div className="flex justify-center mb-4">
+                  <img 
+                    src={`data:image/png;base64,${qrCode}`} 
+                    alt="QR Code"
+                    className="w-48 h-48 border border-slate-200 rounded-lg shadow-sm"
+                  />
+                </div>
+                <p className="text-sm text-slate-600 text-center mb-4">
+                  Print this QR code and attach it to your medicine packages
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handlePrintQR}
+                  className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print QR Code
+                </button>
+                <button
+                  onClick={() => navigate('/manufacturer/batches')}
+                  className="flex-1 bg-slate-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-slate-700 transition-colors"
+                >
+                  View All Batches
+                </button>
+              </div>
+
+              <button
+                onClick={() => {
+                  setSuccess(false);
+                  setFormData({
+                    medicine_name: '',
+                    manufacturer_id: localStorage.getItem('manufacturerId') || '',
+                    batch_number: '',
+                    expiry_date: '',
+                    ingredients: '',
+                    usage: '',
+                    storage: '',
+                    quantity_manufactured: ''
+                  });
+                  setImage(null);
+                  setQrCode('');
+                }}
+                className="w-full mt-3 text-slate-600 hover:text-slate-800 py-2 font-medium transition-colors"
+              >
+                Register Another Batch
               </button>
             </div>
-          </div>
-        </header>
-
-        <div className="max-w-4xl mx-auto px-6 py-8">
-          <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-8">
-            <div className="flex items-center">
-              <svg className="w-8 h-8 text-green-600 mr-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              <div>
-                <h2 className="text-lg font-semibold text-green-900">Batch Successfully Registered!</h2>
-                <p className="text-green-700">AI validation passed. Your medicine batch is now secured on the blockchain.</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid lg:grid-cols-2 gap-8">
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Batch Information</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Medicine:</span>
-                  <span className="font-medium">{formData.medicine_name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Batch Number:</span>
-                  <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">{formData.batch_number}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Quantity:</span>
-                  <span className="font-medium">{formData.quantity_manufactured} units</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Expiry Date:</span>
-                  <span className="font-medium">{formData.expiry_date}</span>
-                </div>
-                <div className="pt-3 border-t border-gray-200">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Blockchain Hash:</span>
-                  </div>
-                  <span className="font-mono text-xs text-gray-500 break-all">
-                    {result.batch_registration?.blockchain_hash}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">QR Code</h3>
-              <div className="text-center">
-                {result.batch_registration?.qr_code_base64 && (
-                  <div>
-                    <img
-                      src={`data:image/png;base64,${result.batch_registration.qr_code_base64}`}
-                      alt="QR Code"
-                      className="mx-auto border rounded-lg shadow-sm mb-4"
-                    />
-                    <p className="text-sm text-gray-600 mb-4">
-                      Print this QR code and attach to medicine packages
-                    </p>
-                    <button
-                      onClick={() => {
-                        const link = document.createElement('a');
-                        link.download = `qr-${formData.batch_number}.png`;
-                        link.href = `data:image/png;base64,${result.batch_registration.qr_code_base64}`;
-                        link.click();
-                      }}
-                      className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors"
-                    >
-                      Download QR Code
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-8 flex justify-center space-x-4">
-            <button
-              onClick={() => {
-                setResult(null);
-                setFormData({
-                  medicine_name: '',
-                  manufacturer: 'PharmaCore Industries',
-                  batch_number: '',
-                  expiry_date: '',
-                  ingredients: '',
-                  usage: '',
-                  storage: '',
-                  quantity_manufactured: ''
-                });
-                setImage(null);
-              }}
-              className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors"
-            >
-              Register Another Batch
-            </button>
-            <button
-              onClick={() => navigate('/manufacturer/batches')}
-              className="bg-gray-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-gray-700 transition-colors"
-            >
-              View All Batches
-            </button>
           </div>
         </div>
       </div>
@@ -208,236 +187,260 @@ const RegisterBatch = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => navigate('/manufacturer')}
-                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900">Register Medicine Batch</h1>
-                <p className="text-sm text-gray-500">Add new medicine batch with AI validation</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-2 text-sm text-gray-500">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span>AI Ready</span>
-            </div>
+      <div className="max-w-4xl mx-auto mb-8">
+        <button
+          onClick={() => navigate('/manufacturer')}
+          className="flex items-center gap-2 text-slate-600 hover:text-slate-800 mb-4 transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          <span className="font-medium">Back to Dashboard</span>
+        </button>
+        
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-slate-800">Register Medicine Batch</h1>
+            <p className="text-slate-600">Add new medicine batch with AI validation and blockchain security</p>
           </div>
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        {/* Error Alert */}
-        {result && result.status === 'error' && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-center">
-              <svg className="w-5 h-5 text-red-600 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-              <div>
-                <h3 className="text-sm font-medium text-red-800">Registration Failed</h3>
-                <p className="text-sm text-red-700">{result.message}</p>
-              </div>
-              <button
-                onClick={() => setResult(null)}
-                className="ml-auto text-red-400 hover:text-red-600"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
+      <div className="max-w-4xl mx-auto">
+        {error && (
+          <div className="mb-6">
+            <Alert type="error" message={error} onClose={() => setError('')} />
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Basic Information */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">Basic Information</h2>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Medicine Name *
-                </label>
-                <input
-                  type="text"
-                  name="medicine_name"
-                  value={formData.medicine_name}
-                  onChange={handleChange}
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                    errors.medicine_name ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="e.g., Paracetamol 500mg"
-                />
-                {errors.medicine_name && (
-                  <p className="text-red-500 text-sm mt-1">{errors.medicine_name}</p>
-                )}
-              </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid lg:grid-cols-2 gap-6">
+            {/* Basic Information */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+              <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Basic Information
+              </h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Medicine Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="medicine_name"
+                    value={formData.medicine_name}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
+                      validationErrors.medicine_name ? 'border-red-300' : 'border-slate-300'
+                    }`}
+                    placeholder="e.g., Paracetamol 500mg"
+                  />
+                  {validationErrors.medicine_name && (
+                    <p className="text-red-600 text-sm mt-1">{validationErrors.medicine_name}</p>
+                  )}
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Manufacturer *
-                </label>
-                <input
-                  type="text"
-                  name="manufacturer"
-                  value={formData.manufacturer}
-                  onChange={handleChange}
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                    errors.manufacturer ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                />
-                {errors.manufacturer && (
-                  <p className="text-red-500 text-sm mt-1">{errors.manufacturer}</p>
-                )}
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Manufacturer
+                  </label>
+                  <input
+                    type="text"
+                    value={manufacturerName}
+                    className="w-full px-4 py-3 border border-slate-300 rounded-lg bg-slate-50"
+                    readOnly
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Batch Number *
-                </label>
-                <input
-                  type="text"
-                  name="batch_number"
-                  value={formData.batch_number}
-                  onChange={handleChange}
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                    errors.batch_number ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="e.g., PAR2024001"
-                />
-                {errors.batch_number && (
-                  <p className="text-red-500 text-sm mt-1">{errors.batch_number}</p>
-                )}
-              </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Batch Number *
+                    </label>
+                    <input
+                      type="text"
+                      name="batch_number"
+                      value={formData.batch_number}
+                      onChange={handleInputChange}
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
+                        validationErrors.batch_number ? 'border-red-300' : 'border-slate-300'
+                      }`}
+                      placeholder="PAR2024001"
+                    />
+                    {validationErrors.batch_number && (
+                      <p className="text-red-600 text-sm mt-1">{validationErrors.batch_number}</p>
+                    )}
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Expiry Date *
-                </label>
-                <input
-                  type="date"
-                  name="expiry_date"
-                  value={formData.expiry_date}
-                  onChange={handleChange}
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                    errors.expiry_date ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                />
-                {errors.expiry_date && (
-                  <p className="text-red-500 text-sm mt-1">{errors.expiry_date}</p>
-                )}
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Quantity *
+                    </label>
+                    <input
+                      type="number"
+                      name="quantity_manufactured"
+                      value={formData.quantity_manufactured}
+                      onChange={handleInputChange}
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
+                        validationErrors.quantity_manufactured ? 'border-red-300' : 'border-slate-300'
+                      }`}
+                      placeholder="1000"
+                    />
+                    {validationErrors.quantity_manufactured && (
+                      <p className="text-red-600 text-sm mt-1">{validationErrors.quantity_manufactured}</p>
+                    )}
+                  </div>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Quantity Manufactured *
-                </label>
-                <input
-                  type="number"
-                  name="quantity_manufactured"
-                  value={formData.quantity_manufactured}
-                  onChange={handleChange}
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                    errors.quantity_manufactured ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="e.g., 1000"
-                />
-                {errors.quantity_manufactured && (
-                  <p className="text-red-500 text-sm mt-1">{errors.quantity_manufactured}</p>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Expiry Date *
+                  </label>
+                  <input
+                    type="date"
+                    name="expiry_date"
+                    value={formData.expiry_date}
+                    onChange={handleInputChange}
+                    min={new Date().toISOString().split('T')[0]}
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
+                      validationErrors.expiry_date ? 'border-red-300' : 'border-slate-300'
+                    }`}
+                  />
+                  {validationErrors.expiry_date && (
+                    <p className="text-red-600 text-sm mt-1">{validationErrors.expiry_date}</p>
+                  )}
+                </div>
               </div>
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Storage Conditions
-                </label>
-                <input
-                  type="text"
-                  name="storage"
-                  value={formData.storage}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="e.g., Store below 25°C"
-                />
+            {/* Detailed Information */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+              <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Detailed Information
+              </h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Ingredients *
+                  </label>
+                  <textarea
+                    name="ingredients"
+                    value={formData.ingredients}
+                    onChange={handleInputChange}
+                    rows={3}
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none ${
+                      validationErrors.ingredients ? 'border-red-300' : 'border-slate-300'
+                    }`}
+                    placeholder="List all active and inactive ingredients"
+                  />
+                  {validationErrors.ingredients && (
+                    <p className="text-red-600 text-sm mt-1">{validationErrors.ingredients}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Usage Instructions *
+                  </label>
+                  <textarea
+                    name="usage"
+                    value={formData.usage}
+                    onChange={handleInputChange}
+                    rows={3}
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none ${
+                      validationErrors.usage ? 'border-red-300' : 'border-slate-300'
+                    }`}
+                    placeholder="Dosage, frequency, and usage instructions"
+                  />
+                  {validationErrors.usage && (
+                    <p className="text-red-600 text-sm mt-1">{validationErrors.usage}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Storage Instructions *
+                  </label>
+                  <textarea
+                    name="storage"
+                    value={formData.storage}
+                    onChange={handleInputChange}
+                    rows={2}
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none ${
+                      validationErrors.storage ? 'border-red-300' : 'border-slate-300'
+                    }`}
+                    placeholder="Temperature, humidity, and storage conditions"
+                  />
+                  {validationErrors.storage && (
+                    <p className="text-red-600 text-sm mt-1">{validationErrors.storage}</p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Detailed Information */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">Detailed Information</h2>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ingredients *
-                </label>
-                <textarea
-                  name="ingredients"
-                  value={formData.ingredients}
-                  onChange={handleChange}
-                  rows={3}
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                    errors.ingredients ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="e.g., Paracetamol, Starch, Magnesium Stearate"
-                />
-                {errors.ingredients && (
-                  <p className="text-red-500 text-sm mt-1">{errors.ingredients}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Usage Instructions
-                </label>
-                <textarea
-                  name="usage"
-                  value={formData.usage}
-                  onChange={handleChange}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="e.g., Take 1-2 tablets every 4-6 hours as needed"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Medicine Image */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">Medicine Package Image</h2>
+          {/* Image Upload */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Package Image *
+            </h3>
+            
             <ImageUploader
               onImageSelect={setImage}
-              label="Upload clear image of medicine package *"
+              selectedImage={image}
+              error={validationErrors.image}
             />
-            {errors.image && (
-              <p className="text-red-500 text-sm mt-2">{errors.image}</p>
+            {validationErrors.image && (
+              <p className="text-red-600 text-sm mt-2">{validationErrors.image}</p>
             )}
           </div>
 
           {/* Submit Button */}
-          <div className="text-center">
+          <div className="flex justify-end gap-4">
+            <button
+              type="button"
+              onClick={() => navigate('/manufacturer')}
+              className="px-6 py-3 border border-slate-300 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
             <button
               type="submit"
-              className="bg-indigo-600 text-white px-12 py-4 rounded-xl font-semibold text-lg hover:bg-indigo-700 transition-colors inline-flex items-center space-x-3"
+              disabled={loading}
+              className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 flex items-center gap-2"
             >
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM11.207 8.5a1 1 0 00-1.414-1.414L6.586 10.293a.5.5 0 00-.146.353V13a1 1 0 001 1h2.354a.5.5 0 00.353-.146l2.06-2.061z" clipRule="evenodd" />
-              </svg>
-              <span>Register Batch with AI Validation</span>
+              {loading ? (
+                <>
+                  <Loader size="sm" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Register Batch
+                </>
+              )}
             </button>
-            <p className="text-sm text-gray-500 mt-3">
-              AI will validate your batch and generate blockchain-secured QR code
-            </p>
           </div>
         </form>
       </div>

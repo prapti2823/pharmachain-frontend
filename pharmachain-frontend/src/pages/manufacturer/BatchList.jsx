@@ -4,6 +4,7 @@ import Card from '../../components/Card';
 import Table from '../../components/Table';
 import Loader from '../../components/Loader';
 import Alert from '../../components/Alert';
+import MedicineSearch from '../../components/MedicineSearch';
 import { manufacturerAPI } from '../../utils/api';
 import { formatDate, truncateHash } from '../../utils/formatters';
 
@@ -11,6 +12,9 @@ const BatchList = () => {
   const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [regeneratingQR, setRegeneratingQR] = useState(null);
+  const [filterManufacturer, setFilterManufacturer] = useState('');
   const navigate = useNavigate();
   const manufacturer = 'Default Manufacturer';
 
@@ -21,13 +25,28 @@ const BatchList = () => {
   const fetchBatches = async () => {
     try {
       setLoading(true);
-      const response = await manufacturerAPI.getBatches();
+      const response = await manufacturerAPI.getBatches(filterManufacturer);
       setBatches(response.data.batches || []);
     } catch (error) {
       console.error('Error fetching batches:', error);
       setError('Failed to load batches');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRegenerateQR = async (medicineId, medicineName) => {
+    if (!confirm(`Regenerate QR code for ${medicineName}?`)) return;
+    
+    setRegeneratingQR(medicineId);
+    try {
+      const response = await manufacturerAPI.regenerateQR(medicineId);
+      setSuccess('QR code regenerated successfully!');
+      fetchBatches(); // Refresh the list
+    } catch (error) {
+      setError('Failed to regenerate QR code');
+    } finally {
+      setRegeneratingQR(null);
     }
   };
 
@@ -88,15 +107,27 @@ const BatchList = () => {
       key: 'actions',
       header: 'Actions',
       render: (value, row) => (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`/manufacturer/batch/${row.medicine_id}`);
-          }}
-          className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-        >
-          View Details →
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/manufacturer/batch/${row.medicine_id}`);
+            }}
+            className="text-blue-600 hover:text-blue-700 text-sm font-medium px-2 py-1 rounded hover:bg-blue-50"
+          >
+            View
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleRegenerateQR(row.medicine_id, row.medicine_name);
+            }}
+            disabled={regeneratingQR === row.medicine_id}
+            className="text-emerald-600 hover:text-emerald-700 text-sm font-medium px-2 py-1 rounded hover:bg-emerald-50 disabled:opacity-50"
+          >
+            {regeneratingQR === row.medicine_id ? '...' : 'QR'}
+          </button>
+        </div>
       )
     }
   ];
@@ -110,25 +141,67 @@ const BatchList = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <button
-              onClick={() => navigate('/manufacturer')}
-              className="text-blue-600 hover:text-blue-700 mb-2"
-            >
-              ← Back to Dashboard
-            </button>
-            <h1 className="text-2xl font-bold text-gray-900">Medicine Batches</h1>
-            <p className="text-gray-600">Manufacturer: {manufacturer}</p>
-          </div>
+        <div className="mb-8">
           <button
-            onClick={() => navigate('/manufacturer/register-batch')}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            onClick={() => navigate('/manufacturer')}
+            className="flex items-center gap-2 text-slate-600 hover:text-slate-800 mb-4 transition-colors"
           >
-            + Register New Batch
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Dashboard
           </button>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-800 mb-2">Medicine Batches</h1>
+              <p className="text-slate-600">Manage and monitor your registered medicine batches</p>
+            </div>
+            <button
+              onClick={() => navigate('/manufacturer/register-batch')}
+              className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center gap-2 font-medium"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Register New Batch
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-slate-800">Filter Batches</h3>
+                <button
+                  onClick={fetchBatches}
+                  className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh
+                </button>
+              </div>
+              <input
+                type="text"
+                value={filterManufacturer}
+                onChange={(e) => setFilterManufacturer(e.target.value)}
+                placeholder="Filter by manufacturer name..."
+                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              />
+            </div>
+          </div>
+          
+          <div>
+            <MedicineSearch onMedicineSelect={(medicine) => {
+              setFilterManufacturer(medicine.manufacturer);
+              fetchBatches();
+            }} />
+          </div>
         </div>
 
         {error && (
@@ -138,8 +211,16 @@ const BatchList = () => {
             onClose={() => setError('')}
           />
         )}
+        
+        {success && (
+          <Alert
+            type="success"
+            message={success}
+            onClose={() => setSuccess('')}
+          />
+        )}
 
-        <Card>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           {batches.length > 0 ? (
             <div>
               <div className="mb-4 flex items-center justify-between">
@@ -172,7 +253,7 @@ const BatchList = () => {
               </button>
             </div>
           )}
-        </Card>
+        </div>
       </div>
     </div>
   );
